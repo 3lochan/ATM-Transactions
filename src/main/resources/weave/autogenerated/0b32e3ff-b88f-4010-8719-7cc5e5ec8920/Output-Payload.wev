@@ -1,0 +1,28 @@
+%dw 2.0
+
+type auto_0b32e3ff_b88f_4010_8719_7cc5e5ec8920_Output_Payload = {
+  error_message: Null, 
+  subresource_uris?: {
+    media: String, 
+    _?: Any
+  }, 
+  date_updated: String, 
+  date_sent: Null, 
+  date_created: String, 
+  body: String, 
+  api_version: String, 
+  num_segments: String, 
+  uri: String, 
+  sid: String, 
+  num_media: String, 
+  price_unit: String, 
+  price: Null, 
+  account_sid: String, 
+  from: String, 
+  error_code: Null, 
+  to: String, 
+  status: String, 
+  direction: String, 
+  _?: Any
+}
+

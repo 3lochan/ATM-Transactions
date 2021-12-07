@@ -1,0 +1,10 @@
+%dw 2.0
+
+type auto_b8322e69_fcd5_4449_81bb_af75776ad31a_Output_Payload = {|
+  Error: {|
+    correlationId: String, 
+    status: Null, 
+    message: String | Null
+  |}
+|}
+

@@ -1,0 +1,487 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:twilio-connector="http://www.mulesoft.org/schema/mule/twilio-connector"
+	xmlns:twilio="http://www.mulesoft.org/schema/mule/twilio"
+	xmlns:email="http://www.mulesoft.org/schema/mule/email" xmlns:s3="http://www.mulesoft.org/schema/mule/s3" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/s3 http://www.mulesoft.org/schema/mule/s3/current/mule-s3.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/twilio http://www.mulesoft.org/schema/mule/twilio/current/mule-twilio.xsd
+http://www.mulesoft.org/schema/mule/twilio-connector http://www.mulesoft.org/schema/mule/twilio-connector/current/mule-twilio-connector.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<s3:config name="Amazon_S3_Configuration" doc:name="Amazon S3 Configuration" doc:id="b497385c-17a5-401c-b116-c336038f7ed1" >
+		<s3:basic-connection accessKey="${secure::s3.access}" secretKey="${secure::s3.secret}" region="AP_SOUTH_1" />
+	</s3:config>
+	<email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="6c9a0abb-d8a8-420a-b14e-65a65f68be2b" >
+		<email:smtp-connection host="${mail.host}" port="${mail.port}" user="${secure::mail.username}" password="${secure::mail.password}" >
+			<email:properties >
+				<email:property key="mail.smtp.starttls.enable" value="true" />
+			</email:properties>
+		</email:smtp-connection>
+	</email:smtp-config>
+	<twilio-connector:config name="Twilio_Connector_Config" doc:name="Twilio Connector Config" doc:id="19031489-1906-437e-8896-781f3c9a4cf4" property_username="${secure::twilio.username}" property_password="${secure::twilio.password}" property_host="${secure::twilio.host}" property_port="${twilio.port}" property_basePath="${twilio.basePath}" property_protocol="${twilio.protocol}"/>
+	<sub-flow name="createAccount" doc:id="beb352b7-cbde-47da-8ebe-4a90096534b8" >
+		<choice doc:name="Choice" doc:id="5bb1e58a-5559-4c43-9e19-331a9f9344af" >
+			<when expression="#[sizeOf(vars.check) == 0]">
+				<db:insert doc:name="insert-new-record" doc:id="15fc6992-33d3-4a3f-8f4c-daa291011cff" config-ref="Database_Config">
+					<db:sql ><![CDATA[insert into Bank_Transactions
+(custName,custAccNum,atmPin,bankName,accountType,ifscCode,branchName,mailId,phoneNumber,totalBalance,transactionTimeStamp) values
+(:custName,:custAccNum,:atmPin,:bankName,:accountType,:ifscCode,:branchName,:mailId,:phoneNumber,:totalBalance,:transactionTimeStamp)]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	"custName" : vars.initialVariables.body.customerName,
+	"custAccNum" : vars.initialVariables.body.accountNumber,
+	"atmPin" : vars.initialVariables.body.atmPin,
+	"bankName" : vars.initialVariables.body.bank,
+	"accountType" : vars.initialVariables.body."type",
+	"ifscCode" : vars.initialVariables.body.ifscCode,
+	"branchName" : vars.initialVariables.body.branchName,
+	"mailId" : vars.initialVariables.body.mailId,
+	"phoneNumber" : vars.initialVariables.body.contact,
+	"totalBalance" : vars.initialVariables.body.depositAmount default 0.0,
+	"transactionTimeStamp" : now() as Date
+	
+	}]]]></db:input-parameters>
+				</db:insert>
+				<db:select doc:name="fetch-inserted-record" doc:id="9ece0603-c411-4feb-aa56-8e2031586d78" config-ref="Database_Config">
+					<db:sql ><![CDATA[select * from Bank_Transactions where custAccNum= :custAccNum]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	"custAccNum" : vars.initialVariables.body.accountNumber
+}]]]></db:input-parameters>
+				</db:select>
+				<ee:transform doc:name="mail-variables" doc:id="f3941e9b-aafd-496a-bda2-432d51d7445c" >
+					<ee:message />
+					<ee:variables >
+						<ee:set-variable variableName="toAddress" ><![CDATA[payload.mailId[0]]]></ee:set-variable>
+						<ee:set-variable variableName="body" ><![CDATA[%dw 2.0
+output text/plain
+---
+"Congratulations ! Your account is created Successfully with 
+Account Number " ++ payload.custAccNum[0] ++ " with " ++ payload.bankName[0]]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<s3:create-object doc:name="create-file-of-inserted-record" doc:id="d0721d16-2933-4a25-ab50-a47e62ab5b53" config-ref="Amazon_S3_Configuration" bucketName="accinfo" key='#[payload.custAccNum[0] ++"_"++ payload.custName[0]++".json"]'>
+					<s3:object-content ><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+	"custName" : payload.custName[0],
+	"custAccNum" : payload.custAccNum[0],
+	"atmPin" : payload.atmPin[0],
+	"bankName" : payload.bankName[0],
+	"accountType" : payload.accountType[0],
+	"ifscCode" : payload.ifscCode[0],
+	"branchName" : payload.branchName[0],
+	"mailId" : payload.mailId[0],
+	"phoneNumber" : payload.phoneNumber[0],
+	"totalBalance" : payload.totalBalance[0] default 0,
+	"transactionTimeStamp" : now() as Date	
+}]]]></s3:object-content>
+				</s3:create-object>
+				<email:send doc:name="send-account-created-msg" doc:id="8a6c0ba8-0f04-461a-9c91-ede3af51f5ac" config-ref="Email_SMTP" fromAddress="${secure::mail.fromAddress}" subject="Congratulations ! Account created.">
+					<email:to-addresses >
+						<email:to-address value="#[vars.toAddress]" />
+					</email:to-addresses>
+					<email:body >
+						<email:content ><![CDATA[#[vars.body]]]></email:content>
+					</email:body>
+				</email:send>
+				<ee:transform doc:name="twilio-sms-content" doc:id="430f05e1-7f22-4c40-a22e-4df23cb7b8c1">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Account created successfully.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<flow-ref doc:name="twilio-send-sms" doc:id="4d5f7463-762a-4990-a447-8e68a0a94718" name="twilio-send-sms" />
+				<ee:transform doc:name="account-created-sucessfully-response" doc:id="8ac5bb66-916a-4d11-9485-006d3656fe8d" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Account Created Successfully."
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="twilio-sms-content" doc:id="81f65fe5-19a4-436d-89ed-642e5c0220a1" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Account already exists.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<flow-ref doc:name="twilio-send-sms" doc:id="7b25764f-2cc9-4b93-94c3-45e291cb3176" name="twilio-send-sms"/>
+				<ee:transform doc:name="Account-already-exists-response" doc:id="6f5be5a7-90bc-4723-abcf-ac315c5366f7">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Account " ++ vars.initialVariables.body.accountNumber ++ " already exists."]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</otherwise>
+		</choice>
+	</sub-flow>
+	<sub-flow name="unblock" doc:id="db875593-a4f4-4bf1-a8bf-f738639c714e" >
+		<choice doc:name="check user and password== admin" doc:id="00bc0f97-c4bf-4b03-9c38-5216b8ac2264" >
+			<when expression="#[(vars.initialVariables.body.user == 'admin' and vars.initialVariables.body.password == 'admin') and sizeOf(vars.check) == 1]" >
+				<choice doc:name="check accountstatus is active" doc:id="da905c38-553d-4beb-8fe1-b7385453d65a" >
+					<when expression="#[vars.check.accountStatus[0] == 'Active']" >
+						<ee:transform doc:name="twilio-sms-content" doc:id="34bdbac6-67a2-41cc-82dc-7c7c0491dc44" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Account is active.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<flow-ref doc:name="twilio-send-sms" doc:id="339b2f7e-20a0-40b3-91fe-9adb8d75259d" name="twilio-send-sms" />
+						<ee:transform doc:name="account-active" doc:id="f354a648-efa2-4e09-8601-cafd7a782e9a">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Account "++ vars.check.custAccNum[0] ++" is Active."]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</when>
+					<otherwise >
+						<db:update doc:name="update accountstatus and wrongpin to active and 0" doc:id="375f76d0-63e0-4b2f-842d-d889dbb21546" config-ref="Database_Config" >
+							<db:sql ><![CDATA[update Bank_Transactions set accountStatus = 'Active', wrongPin = 0]]></db:sql>
+						</db:update>
+						<ee:transform doc:name="twilio-sms-content" doc:id="a75b5827-dfe1-4cb7-8b34-da6903ac5d93" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Your account is unblocked.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<flow-ref doc:name="twilio-send-sms" doc:id="f0a7f023-f81f-4521-a981-69aeaa3661b3" name="twilio-send-sms" />
+						<ee:transform doc:name="account unblocked response" doc:id="d591d00e-6c1f-4109-8967-288a00ec95d2">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Account "++ vars.check.custAccNum[0] ++" is Unblocked."]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+				<email:send doc:name="account has been blocked msg sent on mail" doc:id="afdd4440-715f-4183-aa3d-57d029b19eba" config-ref="Email_SMTP" fromAddress="trilochan28raparthi@gmail.com" subject="Account has been Unblocked!" >
+					<email:to-addresses >
+						<email:to-address value="#[vars.check.mailId[0]]" />
+					</email:to-addresses>
+					<email:body >
+						<email:content ><![CDATA[This is to inform you that Your Account has been unblocked]]></email:content>
+					</email:body>
+				</email:send>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="twilio-sms-content" doc:id="d0ccc7b4-f2ce-4cca-9468-70d460421ece" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Account does not exists.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<flow-ref doc:name="twilio-send-sms" doc:id="8ebcbdd1-278d-4be9-af65-e2fc9dee3614" name="twilio-send-sms" />
+				<ee:transform doc:name="account not exists" doc:id="f4c43415-1cca-447f-af16-899c537be3f3">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Account not exists."]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</sub-flow>
+	<sub-flow name="checkBalance" doc:id="30f3ad8d-2e6c-42e6-826d-41db1bf6e225" >
+		<choice doc:name="check if account exists or not" doc:id="0d4d0e30-d5ad-401d-b85d-e00fcc4a1e06" >
+			<when expression="#[sizeOf(vars.check) == 0]" >
+				<ee:transform doc:name="twilio-sms-content" doc:id="a5f1f43d-5470-45fe-b50a-9bc83ee968a8" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Account does not exists please enter valid details.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<flow-ref doc:name="twilio-send-sms" doc:id="0f24a8d9-5cd6-43ad-b282-2dfd9be13893" name="twilio-send-sms" />
+				<ee:transform doc:name="account not exists response" doc:id="90b30698-753b-4c7b-bc24-6f50d813c743">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Account " ++ vars.initialVariables.body.accountNumber[0] ++" does not exist Enter Valid Details."]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<choice doc:name="check account status is active" doc:id="387be451-5aab-4625-99dc-23f52c6d8505" >
+					<when expression="#[vars.check.accountStatus[0] == 'Active']" >
+						<choice doc:name="check atm pin valid or not " doc:id="4222ce8a-c660-484d-a027-28c9a2a006fe" >
+							<when expression="#[vars.check.atmPin[0] == vars.initialVariables.body.atmPin]" >
+								<ee:transform doc:name="total balance response" doc:id="ce2765f6-a94c-4fa7-8d70-b5444b7f5e48" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd" >
+									<ee:message >
+										<ee:set-payload ><![CDATA[%dw 2.0
+output text/plain
+---
+"Your total balance is "++ vars.check.totalBalance[0] ++" as on "++ now() as Date
+]]></ee:set-payload>
+									</ee:message>
+									<ee:variables />
+								</ee:transform>
+							</when>
+							<when expression="#[(vars.check.atmPin[0] != vars.initialVariables.body.atmPin) and (vars.check.wrongPin[0] == 3)]" >
+								<flow-ref doc:name="wrongpin==3" doc:id="d240a6aa-8e7b-4283-b3d2-b1f119a1bbee" name="wrongpin==3"/>
+							</when>
+							<when expression="#[(vars.check.atmPin[0] != vars.initialVariables.body.atmPin) and (vars.check.wrongPin[0] &lt; 3)]">
+								<flow-ref doc:name="wrongpin&lt;3" doc:id="13f63928-2457-42ef-9f63-8a22794982b0" name="wrongpin&lt;3" />
+							</when>
+							<otherwise >
+								<ee:transform doc:name="twilio-sms-content" doc:id="c4e124e1-f057-4b31-bf47-1e630d0d7448" >
+									<ee:message >
+										<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "ATM pin not valid maximum tries exhausted",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+								<flow-ref doc:name="twilio-send-sms" doc:id="156f7fef-1ede-432c-9697-c9107b1d1e52" name="twilio-send-sms" />
+								<ee:transform doc:name="atm pin not valid max tries exhausted" doc:id="3a1fd286-275d-426e-a4ba-113223908ce8">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Maximum Attempts reached .Your Account " ++ vars.check.custAccNum[0] ++"is temporarily blocked"]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</otherwise>
+						</choice>
+					</when>
+					<otherwise >
+						<ee:transform doc:name="twilio-sms-content" doc:id="4b1ad741-15e4-4058-86b8-e6e0e955075d" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Account not active.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<flow-ref doc:name="twilio-send-sms" doc:id="a370c701-50f2-4603-b97b-2506325b7b06" name="twilio-send-sms" />
+						<ee:transform doc:name="account not active response" doc:id="3af1b313-a800-4c2f-9168-3ac9818b129e">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Account "++ vars.check.custAccNum[0] ++" temporarily blocked. Please visit nearest Branch"]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+			</otherwise>
+		</choice>
+	</sub-flow>
+	<sub-flow name="withDraw" doc:id="76cfbd00-8cab-470e-bd74-529d17ae7447" >
+		<choice doc:name="check if account exists or not" doc:id="20678ff4-2ceb-4782-bb39-09fa55bef6ae" >
+			<when expression="#[sizeOf(vars.check) == 0]" >
+				<ee:transform doc:name="twilio-sms-content" doc:id="9f71991e-733f-49a3-b1bd-b1b667706254" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Account does not exists please enter valid details.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<flow-ref doc:name="twilio-send-sms" doc:id="e18c45e4-5952-477e-8b4e-21d03e57bac0" name="twilio-send-sms" />
+				<ee:transform doc:name="account not exists response" doc:id="9b472615-2ee5-4a4b-9c1f-a6e049261724">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Account " ++ vars.initialVariables.body.accountNumber[0] ++" does not exist Enter Valid Details."]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<choice doc:name="check account status is active" doc:id="bbaa1602-ce04-44f2-9499-1453823346e7" >
+					<when expression="#[vars.check.accountStatus[0] == 'Active']" >
+						<choice doc:name="check atm pin valid or not " doc:id="fb9a7cf1-853f-4061-82fb-85f913dd372d" >
+							<when expression="#[(vars.check.atmPin[0] != vars.initialVariables.body.atmPin) and (vars.check.wrongPin[0] &lt; 3)]" >
+								<flow-ref doc:name="wrongpin&lt;3" doc:id="95b49b5e-4264-4f07-8091-371fbb692366" name="wrongpin&lt;3" />
+							</when>
+							<when expression="#[(vars.check.atmPin[0] != vars.initialVariables.body.atmPin) and (vars.check.wrongPin[0] == 3)]" >
+								<flow-ref doc:name="wrongpin==3" doc:id="15186dc7-2966-400a-9f62-e554cec15107" name="wrongpin==3" />
+							</when>
+							<when expression="#[(vars.check.atmPin[0] == vars.initialVariables.body.atmPin) and (vars.check.totalBalance[0] &gt; vars.initialVariables.body.amountToBeWithdraw)]">
+								<ee:transform doc:name="totalbalance" doc:id="331a0540-e5a0-4002-980f-6245a0e5caf6" >
+									<ee:message />
+									<ee:variables >
+										<ee:set-variable variableName="totalBalance" ><![CDATA[%dw 2.0
+output application/json
+---
+vars.check.totalBalance[0] - vars.initialVariables.body.amountToBeWithdraw]]></ee:set-variable>
+										<ee:set-variable variableName="debitAmount" ><![CDATA[vars.initialVariables.body.amountToBeWithdraw]]></ee:set-variable>
+									</ee:variables>
+								</ee:transform>
+								<db:update doc:name="Update" doc:id="a73ab4a9-e290-47d5-b1e7-6a64c990b16c" config-ref="Database_Config" target="updateInfo" >
+									<db:sql ><![CDATA[update Bank_Transactions set totalBalance = :totalBalance]]></db:sql>
+									<db:input-parameters ><![CDATA[#[{
+	"totalBalance" : vars.totalBalance
+}]]]></db:input-parameters>
+								</db:update>
+								<db:select doc:name="Select" doc:id="654d3f16-5dda-471f-9ba4-e9dae1504306" config-ref="Database_Config" target="selectInfo" >
+									<db:sql ><![CDATA[select * from Bank_Transactions]]></db:sql>
+								</db:select>
+								<email:send doc:name="withdraw notification sent on mail" doc:id="2d0b0f75-e7fe-4f63-b2c4-94c7146364c0" config-ref="Email_SMTP" fromAddress="trilochan28raparthi@gmail.com" subject="Transaction Alert!" >
+									<email:to-addresses >
+										<email:to-address value="#[vars.check.mailId[0]]" />
+									</email:to-addresses>
+									<email:body >
+										<email:content ><![CDATA[#[%dw 2.0
+output text/plain
+---
+"This is to inform you that Your Account has been debited with "++ vars.debitAmount ++" amount and your Total Balance is "++ vars.selectInfo.totalBalance[0]]]]></email:content>
+									</email:body>
+								</email:send>
+								<ee:transform doc:name="twilio-sms-content" doc:id="944aa624-21f1-471f-9d3d-4183a97a33fa" >
+									<ee:message >
+										<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Transaction happend please check your mail.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+								<flow-ref doc:name="twilio-send-sms" doc:id="df25b9dd-aca3-4d3f-9e35-a80bc0d815ea" name="twilio-send-sms" />
+								<ee:transform doc:name="Transform Message" doc:id="3bf0be68-1802-44cb-805a-2f3395ced186">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Amount " ++ vars.debitAmount ++" is debited. your total balance is " ++ vars.selectInfo.totalBalance[0]]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</when>
+							<when expression="#[(vars.check.atmPin[0] == vars.initialVariables.body.atmPin) and ((vars.check.totalBalance[0] as Number) &lt; (vars.initialVariables.body.amountToBeWithdraw))]">
+								<ee:transform doc:name="twilio-sms-content" doc:id="f56b2410-0dc9-49d5-98e2-19031072ec23" >
+									<ee:message >
+										<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Insufficient funds",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+								<flow-ref doc:name="twilio-send-sms" doc:id="911d6aa0-4e00-4147-ac46-8e8b54ee671c" name="twilio-send-sms" />
+								<ee:transform doc:name="insufficient funds response" doc:id="7b252ed6-3f9c-4da1-951b-558500af3ca0">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Insufficient Funds"]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</when>
+							<otherwise >
+								<ee:transform doc:name="twilio-sms-content" doc:id="bd6ecbae-00b7-4ecb-8e45-38e849b0acb1" >
+									<ee:message >
+										<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "ATM pin not valid maximum tries exhausted",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+								<flow-ref doc:name="twilio-send-sms" doc:id="64460b96-5cad-4b43-b005-05cea3a5b1a5" name="twilio-send-sms" />
+								<ee:transform doc:name="atm pin not valid max tries exhausted" doc:id="e874c340-8ed6-4f83-b059-eacef432237c">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Maximum Attempts reached .Your Account " ++ vars.check.custAccNum[0] ++"is temporarily blocked"]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</otherwise>
+						</choice>
+					</when>
+					<otherwise >
+						<ee:transform doc:name="twilio-sms-content" doc:id="37e1fe87-7ac7-4fd6-8c68-6021f3746f67" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "Account not active.",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<flow-ref doc:name="twilio-send-sms" doc:id="4026b619-1679-4eb2-aa56-bd87344e48e4" name="twilio-send-sms" />
+						<ee:transform doc:name="account not active response" doc:id="2591fd28-7256-4def-8372-8c6ae811e1b2">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Account "++ vars.check.custAccNum[0] ++" temporarily blocked. Please visit nearest Branch"]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+			</otherwise>
+		</choice>
+	</sub-flow>
+</mule>

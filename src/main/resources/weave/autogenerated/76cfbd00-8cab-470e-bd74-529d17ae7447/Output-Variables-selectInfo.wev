@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_76cfbd00_8cab_470e_bd74_529d17ae7447_Output_Variables_selectInfo = Array<{|  pk: Number,   custName: String,   custAccNum: String,   atmPin: String,   bankName: String,   accountType: String,   ifscCode: String,   branchName: String,   totalBalance: Number,   transactionTimeStamp: String,   accountStatus: String,   wrongPin?: Number,   mailId: String,   phoneNumber: String|}>
+
