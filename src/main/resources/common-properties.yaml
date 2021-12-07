@@ -1,0 +1,27 @@
+http:
+  port: "8081"
+https:
+  port: "8082"
+db:
+  host: "![98FtosTJWtg+ndGQoCHFrBVSCPxDx6ku8R2Oh8+6pFw=]"
+  port: "3306"
+  username: "![ea7U19NM0cIluNwpYXVSAQ==]"
+  password: "![EcAicfcfzvx+H6I9sjhOCA==]"
+  name: "sql6455568"
+s3:
+  access: "![crTNHhJe155iO8B02KlNuec9dRIxujDr]"
+  secret: "![9tPIMDJYVJotDYXcl/Dbmvdw+NLkdAfQqDIe4wUJzhBR3sMkig9Jn+oQK9gLkFVH]"
+mail:
+  host: "smtp.gmail.com"
+  port: "587"
+  username: "![BmpE4MczHS7a6jqKbOSb8SXwFLhGQXZ5LdmwyePZ9ik=]"
+  password: "![LVIqU0cGeVd42MjXoVhpOA==]"
+  fromAddress: "trilochan28raparthi@gmail.com"
+twilio:
+  username: "![/peCkrF9PcVvYLuQ3LODn8G4aR0W6rqLNUvOQ2Tw0KywgB39fjLyjw==]"
+  password: "![Z6pOS1Ctlxi/g3l03MZ5WN98TFbv822y3Ve2vE+zB16VvCmP/QCawQ==]"
+  host: "![FmOyJKA2chElGMHpDRAzbw==]"
+  port: "443"
+  basePath: "/2010-04-01"
+  protocol: "HTTPS"
+  

@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:twilio-connector="http://www.mulesoft.org/schema/mule/twilio-connector"
+	xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd
+http://www.mulesoft.org/schema/mule/twilio-connector http://www.mulesoft.org/schema/mule/twilio-connector/current/mule-twilio-connector.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="d3471adc-046a-43c2-829b-719a21dfff78" >
+		<db:my-sql-connection host="${secure::db.host}" port="${db.port}" user="${secure::db.username}" password="${secure::db.password}" database="${db.name}" />
+	</db:config>
+	<configuration-properties doc:name="Configuration properties" doc:id="ca9fc787-b4db-471f-a1c8-8790094a3cef" file="common-properties.yaml" />
+	<secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="ddf5faf9-bcdc-4760-b95b-7dc3fba17ac3" file="common-properties.yaml" key="triloo789" >
+		<secure-properties:encrypt algorithm="Blowfish" />
+	</secure-properties:config>
+	<configuration doc:name="Configuration" doc:id="b56f7578-a40c-4037-b97f-70ff2c333ecb" defaultErrorHandler-ref="globalError_Handler" />
+	<sub-flow name="initial-variable-flow" doc:id="931cdc6b-5fdc-4e3f-80a0-23cce5e748d6" >
+		<ee:transform doc:name="initialVariables" doc:id="794f10bc-7483-4fed-9de6-0fbef763e994" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="initialVariables" ><![CDATA[%dw 2.0
+output application/java
+var x = vars.initialRequest
+---
+{
+	correlationId: x.correlationId,
+	timestamp: x.timestamp,
+	name: x.name,
+	body: payload,
+	headers: x.headers,
+	queryParams: x.queryParams,
+	uriParams: attributes.uriParams
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="check-record-exists" doc:id="9cf2519d-d21c-4ad6-b243-7946e8ee2eb9" >
+		<db:select doc:name="check record exists" doc:id="46b25ae3-d8b9-4aec-9f74-863cbf0c492c" config-ref="Database_Config" target="check">
+			<db:sql ><![CDATA[select * from Bank_Transactions where custAccNum = :custAccNum AND bankName = : bankName;]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"custAccNum": vars.initialVariables.body.accountNumber,
+	"bankName": vars.initialVariables.body.bank
+}]]]></db:input-parameters>
+		</db:select>
+	</sub-flow>
+	<sub-flow name="twilio-send-sms" doc:id="0b32e3ff-b88f-4010-8719-7cc5e5ec8920" >
+		<twilio-connector:send-message doc:name="Send message to mobile" doc:id="2dc93d1b-1e9c-4958-b5b4-bc22939fab2a" config-ref="Twilio_Connector_Config" account-sid="${secure::twilio.username}" />
+	</sub-flow>
+	<sub-flow name="wrongpin&lt;3" doc:id="5dba3f49-422c-4210-8216-230090e71733" >
+		<db:update doc:name="incrementing wrongPinvalue" doc:id="6886e46f-ffc3-4d04-8f19-b3dc9c161a65" config-ref="Database_Config" >
+			<db:sql ><![CDATA[update Bank_Transactions set wrongPin = wrongPin+1]]></db:sql>
+		</db:update>
+		<db:select doc:name="fetch wrongpin value" doc:id="1134a497-165f-4d65-8f00-60ca7b200bb6" config-ref="Database_Config" target="wrongpin">
+			<db:sql ><![CDATA[select wrongPin from Bank_Transactions]]></db:sql>
+		</db:select>
+		<email:send doc:name="attempts left info sent on mail" doc:id="c107d7cd-8f20-4b76-8382-ceb120d87fda" config-ref="Email_SMTP" fromAddress="trilochan28raparthi@gmail.com" subject="Failed Attempt ! " >
+			<email:to-addresses >
+				<email:to-address value="#[vars.check.mailId[0]]" />
+			</email:to-addresses>
+			<email:bcc-addresses />
+			<email:body >
+				<email:content ><![CDATA[This is to inform you that there’s a failed attempt happened while transaction . Your Account will be blocked after 3 attempts]]></email:content>
+			</email:body>
+		</email:send>
+		<ee:transform doc:name="twilio-sms-content" doc:id="cdd5ee0e-9bca-4241-b0ad-71e77a5bbba1" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "This is to inform you that there’s a failed attempt happened while transaction . Your Account will be blocked after 3 attempts",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="twilio-send-sms" doc:id="812c29e1-786b-4531-acb2-eac2ae2f37af" name="twilio-send-sms" />
+		<ee:transform doc:name="attempts left response" doc:id="ae7accbc-9518-4eb7-bf13-f8afcaa3975d">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Login Attempt Failed . "++ vars.wrongpin.wrongPin[0] ++" Attempts has been made out of 3."]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="wrongpin==3" doc:id="46785b76-1647-4afe-ac3e-b6e1eaa36669" >
+		<db:update doc:name="update account status" doc:id="888bd7a2-64b5-43b2-8c0c-742294b6db34" config-ref="Database_Config" >
+			<db:sql ><![CDATA[update Bank_Transactions set accountStatus = 'Blocked']]></db:sql>
+		</db:update>
+		<email:send doc:name="blocked status sent on mail" doc:id="7dec65d3-1506-4a66-9484-861ac421d3d9" config-ref="Email_SMTP" fromAddress="trilochan28raparthi@gmail.com" subject="Account Blocked ! " >
+			<email:to-addresses >
+				<email:to-address value="#[vars.check.mailId[0]]" />
+			</email:to-addresses>
+			<email:body >
+				<email:content ><![CDATA[This is to inform you that Your Account has been be blocked due to 3 failed attempts. Please reach out nearest branch to unblock 
+]]></email:content>
+			</email:body>
+		</email:send>
+		<ee:transform doc:name="twilio-sms-content" doc:id="2277280f-826b-48f8-a93c-ab638c13f47f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	Body: "This is to inform you that Your Account has been be blocked due to 3 failed attempts. Please reach out nearest branch to unblock",
+	From: "+12055481007",
+	To: "+918686554447"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="twilio-send-sms" doc:id="2c02b0f4-e9f7-4557-b9fd-c94829a903a5" name="twilio-send-sms" />
+		<ee:transform doc:name="maximum attempts reached response" doc:id="010ed27a-ec6a-4b3e-862b-ceb3050d1526">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+"Maximum Attempts reached .Your Account "++ vars.check.custAccNum[0] ++" is temporarily blocked. Please reach nearest Branch."]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<error-handler name="globalError_Handler" doc:id="35b06058-68cf-4ab5-be7f-3d68d8600a5a" >
+		<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="169bdd8c-b1d0-4ff1-b72b-ff83a3b15f4d" type="VALIDATION:NULL">
+			<set-variable value="400" doc:name="httpStatus" doc:id="b15b03de-01d3-49f7-8cf1-14cf0a8a3d31" variableName="httpStatus"/>
+			<flow-ref doc:name="errormessage" doc:id="0bdd0dfa-b5fe-47bb-94c7-bd931235072b" name="errormessage"/>
+		</on-error-propagate>
+		<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="5331efd2-7a25-4015-9c3c-2ed36fc03362" type="CONNECTIVITY">
+			<set-variable value="504" doc:name="httpStatus" doc:id="026aae5e-d714-4e6a-b27b-a867d64d4c36" variableName="httpStatus" />
+			<flow-ref doc:name="errormessage" doc:id="0a03290c-4107-4fda-aecb-2290189cc8ca" name="errormessage" />
+		</on-error-propagate>
+		<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="1d7d76b9-7c1a-4e19-823c-c48bfda42752" type="MULE:CLIENT_SECURITY">
+			<set-variable value="500" doc:name="httpStatus" doc:id="396e0769-7963-4502-a464-f9d212078abd" variableName="httpStatus" />
+			<flow-ref doc:name="errormessage" doc:id="9fcf67f6-231e-47fb-b641-f34fff4e7163" name="errormessage" />
+		</on-error-propagate>
+		<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="85d62c6c-47dc-4208-8f41-48fc8311f7ee" type="MULE:SERVER_SECURITY">
+			<choice doc:name="Choice" doc:id="d6e5e1d9-0902-41a4-a05b-18d73d93377e" >
+				<when expression="#[error.errorType.identifier == 'UNAUTHORIZED']">
+					<set-variable value="401" doc:name="httpStatus" doc:id="5e4f52ff-e808-4519-a323-45176e7a524b" variableName="httpStatus" />
+				</when>
+				<otherwise >
+					<set-variable value="403" doc:name="httpStatus" doc:id="eca26deb-90f9-4fb1-ab43-7fb3e59a90fb" variableName="httpStatus" />
+				</otherwise>
+			</choice>
+			<flow-ref doc:name="errormessage" doc:id="4bfe7a62-9185-41fb-b11c-760faeebf0a1" name="errormessage" />
+		</on-error-propagate>
+		<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="31e58c3a-d6a5-4585-8a8c-9c7f5eecfbc7" type="ANY">
+			<choice doc:name="Choice" doc:id="f49bd4aa-30ef-41d8-a09d-81583ba45b64" >
+				<when expression="#[error.errorType.namespace == 'APIKIT']">
+					<choice doc:name="Choice" doc:id="378875c3-20b5-4506-8ead-73fb36524a6a" >
+						<when expression="#[error.errorType.identifier == 'BAD_REQUEST']">
+							<set-variable value="400" doc:name="httpStatus" doc:id="5a7a1162-acf0-4052-91d0-1ea171e028ba" variableName="httpStatus" />
+						</when>
+						<when expression="#[error.errorType.namespace == 'NOT_FOUND']">
+							<set-variable value="404" doc:name="httpStatus" doc:id="5a8d5d61-3c67-46a2-b253-6368c1ee143a" variableName="httpStatus" />
+						</when>
+						<when expression="#[error.errorType.namespace == 'UNSUPPORTED_MEDIA_TYPE']">
+							<set-variable value="415" doc:name="httpStatus" doc:id="11ac1eee-1a4f-4c7d-9f6d-d118eede87a4" variableName="httpStatus"/>
+						</when>
+						<when expression="#[error.errorType.namespace == 'METHOD_NOT_ALLOWED']">
+							<set-variable value="405" doc:name="httpStatus" doc:id="f3b3ee35-c630-486e-aa4a-2c5ef408d33c" variableName="httpStatus"/>
+						</when>
+						<when expression="#[error.errorType.namespace == 'NOT_ACCEPTABLE']">
+							<set-variable value="406" doc:name="httpStatus" doc:id="901942ad-a252-41fb-99cc-75910fd9cba9" variableName="httpStatus"/>
+						</when>
+						<when expression="#[error.errorType.namespace == 'NOT_IMPLEMENTED']">
+							<set-variable value="501" doc:name="httpStatus" doc:id="87036ac4-4b1d-4d89-a2b2-5ed850ad8c24" variableName="httpStatus"/>
+						</when>
+					</choice>
+				</when>
+				<otherwise >
+					<set-variable value="500" doc:name="httpStatus" doc:id="371de0a6-a317-44b5-a932-5a3d2c975130" variableName="httpStatus" />
+				</otherwise>
+			</choice>
+			<flow-ref doc:name="errormessage" doc:id="be683acb-94c5-40b1-ad67-56b185707184" name="errormessage" />
+		</on-error-propagate>
+	</error-handler>
+	<sub-flow name="errormessage" doc:id="b8322e69-fcd5-4449-81bb-af75776ad31a" >
+		<ee:transform doc:name="error-message" doc:id="f43f7c8b-8f77-426a-8c42-5d573a96d961" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Error" : {
+		"correlationId": correlationId,
+		"status": vars.httpStatus,
+		"message": error.detailedDescription
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+</mule>

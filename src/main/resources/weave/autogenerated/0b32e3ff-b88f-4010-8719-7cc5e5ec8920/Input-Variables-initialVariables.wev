@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_0b32e3ff_b88f_4010_8719_7cc5e5ec8920_Input_Variables_initialVariables = {|  |}
+

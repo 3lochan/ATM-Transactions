@@ -1,0 +1,8 @@
+%dw 2.0
+
+type auto_671fd7a4_7322_4861_8712_caa77399f6df_Input_Payload = {
+  bank: String, 
+  accountNumber: String, 
+  _?: Any
+}
+

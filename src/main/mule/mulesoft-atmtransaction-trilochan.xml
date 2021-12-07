@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:email="http://www.mulesoft.org/schema/mule/email" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd">
+    <http:listener-config name="mulesoft-atmtransaction-trilochan-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="${https.port}" protocol="HTTPS">
+			<tls:context >
+				<tls:key-store type="jks" path="mule.jks" keyPassword="password" password="password" />
+			</tls:context>
+		</http:listener-connection>
+    </http:listener-config>
+    <apikit:config name="mulesoft-atmtransaction-trilochan-config" api="mulesoft-atmtransaction-trilochan.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <flow name="mulesoft-atmtransaction-trilochan-main">
+        <http:listener config-ref="mulesoft-atmtransaction-trilochan-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <ee:transform doc:name="initialRequest" doc:id="8fd2653b-bd35-4ac9-9d27-247906b7a7cf" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="initialRequest" ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	correlationId: correlationId,
+	timestamp: now(),
+	name: attributes.method ++ ' ' ++ attributes.maskedRequestPath,
+	headers: attributes.headers,
+	queryParams: attributes.queryParams
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<apikit:router config-ref="mulesoft-atmtransaction-trilochan-config" />
+    </flow>
+	<flow name="mulesoft-atmtransaction-trilochan-console">
+        <http:listener config-ref="mulesoft-atmtransaction-trilochan-httpListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="mulesoft-atmtransaction-trilochan-config" />
+    </flow>
+    <flow name="put:\unblock:application\json:mulesoft-atmtransaction-trilochan-config">
+        <flow-ref doc:name="initial-variable-flow" doc:id="2ab65936-c2ba-4d84-9d56-b20c9981d45a" name="initial-variable-flow"/>
+		<flow-ref doc:name="unBlock-validation" doc:id="394c6bad-b5a0-4855-8fa4-35597481caf6" name="unBlock-validation"/>
+		<flow-ref doc:name="check-record-exists" doc:id="1b0ab399-6956-48a6-89c2-25dd72621218" name="check-record-exists" />
+		<flow-ref doc:name="unblock" doc:id="9200ec9f-a04b-4e7d-b3b2-4c7bf3c342a0" name="unblock"/>
+    </flow>
+    <flow name="post:\checkBalance:application\json:mulesoft-atmtransaction-trilochan-config">
+        <flow-ref doc:name="initial-variable-flow" doc:id="5c29cf6f-1ca4-4202-9978-149980e8f328" name="initial-variable-flow"/>
+		<flow-ref doc:name="checkBalance-validation" doc:id="46f7c3da-a9dc-4a03-b22b-9550f5008894" name="checkBalance-validation"/>
+		<flow-ref doc:name="check-record-exists" doc:id="1e771547-441c-48f4-af94-932c9f124f6f" name="check-record-exists"/>
+		<flow-ref doc:name="checkBalance" doc:id="9780eac7-b67a-4d43-9481-16ab7214d333" name="checkBalance"/>
+    </flow>
+    <flow name="post:\createAccount:application\json:mulesoft-atmtransaction-trilochan-config">
+        <flow-ref doc:name="initial-variable-flow" doc:id="ca7e63ee-5d08-4d68-9e19-a44e041319b5" name="initial-variable-flow"/>
+		<flow-ref doc:name="createAccount-validation" doc:id="d5c15e24-0392-4042-93a0-991c328c7fea" name="createAccount-validation"/>
+		<flow-ref doc:name="check-record-exists" doc:id="190f0c4a-5a33-446b-baf4-a0ab6089f07b" name="check-record-exists" />
+		<flow-ref doc:name="createAccount" doc:id="4d3fcc08-7371-4758-9ea1-6a9a99ad287b" name="createAccount"/>
+    </flow>
+    <flow name="post:\withDraw:application\json:mulesoft-atmtransaction-trilochan-config">
+        <flow-ref doc:name="initial-variable-flow" doc:id="169cb9b6-2131-4437-a307-436957cfbe99" name="initial-variable-flow"/>
+		<flow-ref doc:name="withDraw-validation" doc:id="fa65478a-1a9e-41ab-85da-ef039b7bdfd7" name="withDraw-validation"/>
+		<flow-ref doc:name="check-record-exists" doc:id="6f548c15-7fb2-43d3-baf1-d51e5e69f0dd" name="check-record-exists" />
+		<flow-ref doc:name="withDraw" doc:id="6a15c1e0-31c2-4b5c-bf11-0be99ee8cd0c" name="withDraw"/>
+    </flow>
+	<flow name="schedulerFlow" doc:id="b28178e8-04f0-47ea-86e0-dbe7fb818e52" >
+		<scheduler doc:name="7pm IST everyday" doc:id="30f7f514-c5b4-42b8-af2c-ac514cfc9c92" >
+			<scheduling-strategy >
+				<cron expression="0 0 7 1/1 * ? *" timeZone="IST" />
+			</scheduling-strategy>
+		</scheduler>
+		<db:select doc:name="fetch totalbalance and mailid" doc:id="def6b4c1-de55-4cb5-8a27-ae213dfbc88a" config-ref="Database_Config" >
+			<db:sql ><![CDATA[select totalBalance,mailId from Bank_Transactions]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="mapping totalbalance mailid" doc:id="1ef5b1df-29b0-4f3c-9ee1-c6273ec8cf1f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map ((item, index) -> 
+	{
+		"totalBalance" : item.totalBalance,
+		"mailId": item.mailId
+	}
+)]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<foreach doc:name="For Each" doc:id="b543e627-9f47-4d6b-8c02-4d71b234326b" >
+			<email:send doc:name="send totalbalance" doc:id="d0f9be79-d872-4db4-b88a-f6adf70247e5" config-ref="Email_SMTP" fromAddress="trilochan28raparthi@gmail.com" subject="Today's Total Balance" >
+				<email:to-addresses >
+					<email:to-address value="#[payload.mailId]" />
+				</email:to-addresses>
+				<email:body >
+					<email:content ><![CDATA[#[%dw 2.0
+output text/plain
+---
+"Your total balance is "++ payload.totalBalance]]]></email:content>
+				</email:body>
+			</email:send>
+		</foreach>
+	</flow>
+</mule>

@@ -1,0 +1,216 @@
+#%RAML 1.0
+title: mulesoft-atmTransaction-trilochan
+baseUri: http://localhost:8081/transaction
+/createAccount:
+  post:
+    body:
+      application/json:
+        properties:
+          accountNumber:
+            required: true
+            type: string
+            minLength: 10
+            maxLength: 12
+          customerName:
+            required: true
+            minLength: 4
+            maxLength: 45
+          bank:
+            required: true
+            enum:
+              - ICICI
+              - AXIS
+              - HDFC
+          type:
+            required: true
+            enum:
+              - savings
+              - current
+          branchName:
+            required: true
+            minLength: 4
+            maxLength: 10
+          atmPin:
+            required: true
+            type: string
+            minLength: 4
+            maxLength: 4
+          ifscCode:
+            required: true
+            minLength: 4
+            maxLength: 10
+          depositAmount:
+            required: false
+            type: integer
+          mailId:
+            required: true
+            type: string
+          contact:
+            required: true
+            type: string
+    responses:
+      201:
+        body:
+          application/json:
+            example:
+              {
+                "Status" : "Account Created Successfully with Account Number 8686554447."
+              }
+      400:
+        body:
+          application/json:
+            example:
+              {
+                "status" : "please provide the valid Input."
+              }
+      409:
+        body:
+          application/json:
+            example:
+              {
+                "status" : "Account Already exists with 8686554447."
+              }
+      500:
+        body:
+          application/json:
+            example:
+              {
+                "status" : "Internal Server Error"
+              }
+/checkBalance:
+  post:
+    body:
+      application/json:
+        properties:
+          accountNumber:
+            required: true
+            type: string
+            minLength: 10
+            maxLength: 12
+          bank:
+            required: true
+            enum:
+              - ICICI
+              - AXIS
+              - HDFC
+          type:
+            required: true
+            enum:
+              - savings
+              - current
+          atmPin:
+            required: true
+            type: string
+            minLength: 4
+            maxLength: 4
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {
+                "status": "Your total balance is 452345 as on 03-Dec-2021."
+              }
+      400:
+        body:
+          application/json:
+            example:
+              {
+                "status" : "please provide the valid Input."
+              }
+      500:
+        body:
+          application/json:
+            example:
+              {
+                "status" : "Internal Server Error"
+              }
+/withDraw:
+  post:
+    body:
+      application/json:
+        properties:
+          accountNumber:
+            required: true
+            type: string
+            minLength: 10
+            maxLength: 12
+          bank:
+            required: true
+            enum:
+              - ICICI
+              - AXIS
+              - HDFC
+          type:
+            required: true
+            enum:
+              - savings
+              - current
+          atmPin:
+            required: true
+            type: string
+            minLength: 4
+            maxLength: 4
+          amountToBeWithdraw:
+            required: true
+            type: integer
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {
+                "status": "Amount 4000 is debited. your total balance is 40000."
+              }
+      400:
+        body:
+          application/json:
+            example:
+              {
+                "status" : "please provide the valid Input."
+              }
+      500:
+        body:
+          application/json:
+            example:
+              {
+                "status" : "Internal Server Error"
+              }
+/unblock:
+  put:
+    body:
+      application/json:
+        properties:
+          accountNumber:
+            required: true
+            type: string
+            minLength: 10
+            maxLength: 12
+          bank:
+            required: true
+            enum:
+              - ICICI
+              - AXIS
+              - HDFC
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {
+                "status": "Account 8686554447 is unblocked."
+              }
+      400:
+        body:
+          application/json:
+            example:
+              {
+                "status" : "please provide the valid Input."
+              }
+      500:
+        body:
+          application/json:
+            example:
+              {
+                "status" : "Internal Server Error"
+              }

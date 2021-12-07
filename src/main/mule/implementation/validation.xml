@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	<validation:config name="Validation_Config" doc:name="Validation Config" doc:id="d94420f6-935f-4101-9c5e-99660c04924b" />
+	<sub-flow name="createAccount-validation" doc:id="cfe0e025-e7f2-44dc-8b84-c34fb923ed05" >
+		<validation:is-not-null doc:id="2ef9ebbb-d2a5-4352-bdfb-00e32a3a22df" doc:name="check accountNumber" value="#[vars.initialVariables.body.accountNumber]" message="Please provide the Account Number." config-ref="Validation_Config"/>
+		<validation:is-not-null doc:name="check customerName" doc:id="41893b55-f81d-4d52-85e6-691f2f8c91e9" value="#[vars.initialVariables.body.customerName]" message="Please provide the Customer Name." config-ref="Validation_Config"/>
+		<validation:is-not-null doc:name="check bank" doc:id="dabb68a2-a00d-4b6e-a2d9-06ed73fb2dcd" value="#[vars.initialVariables.body.bank]" message="Please provide the Bank Name." config-ref="Validation_Config"/>
+		<validation:is-not-null doc:name="check type" doc:id="2d93c4b2-8bba-4e44-a184-0f7b7542bf31" value='#[vars.initialVariables.body."type"]' message="please provide the Account type." config-ref="Validation_Config"/>
+		<validation:is-not-null doc:name="check branchName" doc:id="0c4eb124-7d40-4b4e-ac37-8810339d8c69" value="#[vars.initialVariables.body.branchName]" message="Please provide the Branch Name." config-ref="Validation_Config"/>
+		<validation:is-not-null doc:name="check atmPin" doc:id="ed4bac3a-074e-4970-8300-a9a5fedda5c3" value="#[vars.initialVariables.body.atmPin]" message="Please provide the ATM pin." config-ref="Validation_Config"/>
+		<validation:is-not-null doc:name="check ifscCode" doc:id="32087ba5-744e-41a0-ba4c-fcc7b6d878f2" value="#[vars.initialVariables.body.ifscCode]" message="Please provide the IFSC code." config-ref="Validation_Config"/>
+		<validation:is-not-null doc:name="check mailId" doc:id="3676bec6-70fc-4e5d-b213-4f9cfcb50a6e" value="#[vars.initialVariables.body.mailId]" message="Please provide your EMAIL id." config-ref="Validation_Config"/>
+		<validation:is-not-null doc:name="check contact" doc:id="8bb37b96-e425-40d0-9870-89614638317c" value="#[vars.initialVariables.body.contact]" message="Please provide the Contact Number." config-ref="Validation_Config"/>
+	</sub-flow>
+	<sub-flow name="checkBalance-validation" doc:id="f46badaa-66c5-45ef-a51c-c26bd7010fff" >
+		<validation:is-not-null doc:name="check accountNumber" doc:id="2d65cee3-6c33-4176-879b-a8dffaf477cc" config-ref="Validation_Config" value="#[vars.initialVariables.body.accountNumber]" message="Please provide the Account Number." />
+		<validation:is-not-null doc:name="check bank" doc:id="585e8493-2520-4d21-acb9-900cd6b3702d" config-ref="Validation_Config" value="#[vars.initialVariables.body.bank]" message="Please provide the Bank Name." />
+		<validation:is-not-null doc:name="check type" doc:id="689c1731-cbd6-447e-824a-cdd64cbf9a8c" config-ref="Validation_Config" value='#[vars.initialVariables.body."type"]' message="please provide the Account type." />
+		<validation:is-not-null doc:name="check atmPin" doc:id="755b06a2-7f93-4b84-8345-3ca04e52d159" config-ref="Validation_Config" value="#[vars.initialVariables.body.atmPin]" message="Please provide the ATM pin." />
+	</sub-flow>
+	<sub-flow name="withDraw-validation" doc:id="256b8499-1a1e-4752-b716-869266e6ab86" >
+		<validation:is-not-null doc:name="check accountNumber" doc:id="6ce887ea-fe75-4603-8578-4507c503381c" config-ref="Validation_Config" value="#[vars.initialVariables.body.accountNumber]" message="Please provide the Account Number." />
+		<validation:is-not-null doc:name="check bank" doc:id="acdec084-c684-4c25-9516-eb1b1067b32b" config-ref="Validation_Config" value="#[vars.initialVariables.body.bank]" message="Please provide the Bank Name." />
+		<validation:is-not-null doc:name="check type" doc:id="56b1e9a0-faee-4ab6-8ca1-b5b94783dc9c" config-ref="Validation_Config" value='#[vars.initialVariables.body."type"]' message="please provide the Account type." />
+		<validation:is-not-null doc:name="check atmPin" doc:id="d0769453-1fda-403e-a962-06e3d2f2b4f5" config-ref="Validation_Config" value="#[vars.initialVariables.body.atmPin]" message="Please provide the ATM pin." />
+		<validation:is-not-null doc:name="check amountToBeWithdraw" doc:id="824ddfac-15e2-4dde-99d2-ccefe0d81d91" config-ref="Validation_Config" value="#[vars.initialVariables.body.amountToBeWithdraw]" message="Please provide the ATM pin." />
+	</sub-flow>
+	<sub-flow name="unBlock-validation" doc:id="671fd7a4-7322-4861-8712-caa77399f6df" >
+		<validation:is-not-null doc:name="check accountNumber" doc:id="2738b529-c0b2-464e-a404-88fc992ce8e9" config-ref="Validation_Config" value="#[vars.initialVariables.body.accountNumber]" message="Please provide the Account Number." />
+		<validation:is-not-null doc:name="check bank" doc:id="48ab43a6-2275-4050-8d1e-3447d304c35c" config-ref="Validation_Config" value="#[vars.initialVariables.body.bank]" message="Please provide the Bank Name." />
+		<validation:is-not-null doc:name="check user" doc:id="0c55e7c9-c995-4dca-9245-ca166eb2f128" config-ref="Validation_Config" value='#[vars.initialVariables.body.user]' message="please provide the username" />
+		<validation:is-not-null doc:name="check password" doc:id="4a1cb1cf-6ba7-420c-9980-a22dbd12c380" config-ref="Validation_Config" value="#[vars.initialVariables.body.password]" message="Please provide the password." />
+	</sub-flow>
+</mule>
